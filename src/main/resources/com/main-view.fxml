@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<TabPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="768.0"
+         prefWidth="1024.0" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/17.0.12"
+         xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.controllers.Controller">
+    <Tab text="Граф">
+        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="768.0" prefWidth="1024.0">
+            <HBox fx:id="graphBox" layoutX="14.0" layoutY="15.0" prefHeight="710.0" prefWidth="995.0" spacing="20.0">
+                <VBox prefHeight="710.0" prefWidth="184.0" spacing="20.0">
+                    <padding>
+                        <Insets top="20.0"/>
+                    </padding>
+                    <Button mnemonicParsing="false" onAction="#onAddVertex" prefHeight="51.0" prefWidth="184.0"
+                            text="Добавить"/>
+                    <Button layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onEditSelected"
+                            prefHeight="51.0" prefWidth="184.0" text="Изменить"/>
+                    <Button layoutX="10.0" layoutY="101.0" mnemonicParsing="false" onAction="#onConnectSelected"
+                            prefHeight="51.0" prefWidth="184.0" text="Соединить"/>
+                    <Button layoutX="10.0" layoutY="172.0" mnemonicParsing="false" onAction="#onRemoveSelected"
+                            prefHeight="51.0" prefWidth="184.0" text="Удалить"/>
+                </VBox>
+            </HBox>
+        </AnchorPane>
+    </Tab>
+    <Tab text="Решение">
+        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0"/>
+    </Tab>
+</TabPane>
