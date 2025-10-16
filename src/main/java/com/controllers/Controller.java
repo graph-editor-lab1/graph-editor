@@ -285,7 +285,6 @@ public class Controller implements Initializable {
 
       report.append("\nЦикл ").append(i + 1).append(": ");
       report.append(cycle.stream()
-        .limit(cycle.size() - 1)
         .map(Vertex::element)
         .collect(Collectors.joining(" → ")));
       report.append(" (").append(isNegative ? "отрицательный" : "положительный").append(")");
@@ -395,7 +394,7 @@ public class Controller implements Initializable {
         Vertex<String> to = cycle.get(i + 1);
         Edge<EdgeWeight, String> edge = findEdgeBetween(digraph, from, to);
         if (edge != null) {
-          product *= edge.element().getValue(); // ← получаем double
+          product *= edge.element().getValue();
         }
       }
     } catch (InvalidVertexException e) {
