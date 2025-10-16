@@ -27,6 +27,33 @@
         </AnchorPane>
     </Tab>
     <Tab text="Решение">
-        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0"/>
+        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="768.0" prefWidth="1024.0">
+            <HBox prefHeight="768.0" prefWidth="1024.0"
+                  AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0"
+                  AnchorPane.rightAnchor="0" AnchorPane.topAnchor="0">
+
+                <VBox fx:id="structuralAnalysisBox" HBox.hgrow="ALWAYS">
+                    <padding><Insets bottom="10" left="10" right="5" top="10"/></padding>
+                    <Label text="Структурный анализ" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                    <Separator/>
+                    <Button text="Запустить анализ" onAction="#onRunStructuralAnalysis"
+                            prefHeight="30.0" style="-fx-padding: 5 10 5 10;"/>
+                    <TextArea fx:id="structuralAnalysisText" editable="false" wrapText="true" VBox.vgrow="ALWAYS"
+                              style="-fx-control-inner-background: #f9f9f9;"/>
+                </VBox>
+
+                <!-- Разделитель -->
+                <Separator orientation="VERTICAL" style="-fx-padding: 5 0 5 0;"/>
+
+                <!-- Импульсное моделирование -->
+                <VBox fx:id="impulseModelingBox" HBox.hgrow="ALWAYS">
+                    <padding><Insets bottom="10" left="5" right="10" top="10"/></padding>
+                    <Label text="Импульсное моделирование" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                    <Separator/>
+                    <TextArea fx:id="impulseModelingText" editable="false" wrapText="true" VBox.vgrow="ALWAYS"/>
+                </VBox>
+
+            </HBox>
+        </AnchorPane>
     </Tab>
 </TabPane>
