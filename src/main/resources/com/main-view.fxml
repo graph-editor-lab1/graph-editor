@@ -4,6 +4,7 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
+<?import javafx.scene.chart.LineChart?>
 <TabPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="768.0"
          prefWidth="1024.0" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/17.0.12"
          xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.controllers.Controller">
@@ -32,7 +33,7 @@
                   AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0"
                   AnchorPane.rightAnchor="0" AnchorPane.topAnchor="0">
 
-                <VBox fx:id="structuralAnalysisBox" HBox.hgrow="ALWAYS">
+                <VBox fx:id="structuralAnalysisBox" prefWidth="410">
                     <padding><Insets bottom="10" left="10" right="5" top="10"/></padding>
                     <Label text="Структурный анализ" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
                     <Separator/>
@@ -42,15 +43,29 @@
                               style="-fx-control-inner-background: #f9f9f9;"/>
                 </VBox>
 
-                <!-- Разделитель -->
                 <Separator orientation="VERTICAL" style="-fx-padding: 5 0 5 0;"/>
 
-                <!-- Импульсное моделирование -->
-                <VBox fx:id="impulseModelingBox" HBox.hgrow="ALWAYS">
+                <VBox fx:id="impulseModelingBox" prefWidth="614" HBox.hgrow="ALWAYS">
                     <padding><Insets bottom="10" left="5" right="10" top="10"/></padding>
                     <Label text="Импульсное моделирование" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
                     <Separator/>
-                    <TextArea fx:id="impulseModelingText" editable="false" wrapText="true" VBox.vgrow="ALWAYS"/>
+
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Вектор импульса:"/>
+                        <TextField fx:id="impulseVectorField" promptText="Например: 1, 0, 1, 0" HBox.hgrow="ALWAYS"/>
+                    </HBox>
+
+                    <Button fx:id="runImpulseButton" text="Запустить моделирование" onAction="#onRunImpulseSimulation"
+                            prefHeight="30.0" style="-fx-padding: 5 10 5 10;" alignment="CENTER"/>
+
+                    <!-- Выбор вершин для отображения -->
+                    <ScrollPane fx:id="vertexSelectionScrollPane" prefHeight="80" VBox.vgrow="NEVER">
+                        <content>
+                            <FlowPane fx:id="vertexSelectionPane" />
+                        </content>
+                    </ScrollPane>
+
+                    <StackPane fx:id="chartContainer" VBox.vgrow="ALWAYS"/>
                 </VBox>
 
             </HBox>

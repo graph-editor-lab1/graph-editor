@@ -5,13 +5,11 @@ import com.brunomnsilva.smartgraph.graph.*;
 import com.brunomnsilva.smartgraph.graphview.*;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextInputDialog;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 
 import java.net.URL;
 import java.util.*;
@@ -22,14 +20,13 @@ public class Controller implements Initializable {
 
   @FXML
   private HBox graphBox;
-
   private SmartGraphPanel<String, EdgeWeight> graphView;
-
   private final List<SmartStylableNode> selected = new ArrayList<>();
 
   @Override
   public void initialize(URL url, ResourceBundle resourceBundle) {
     createGraphView();
+    setupImpulseChart();
   }
 
   @FXML
@@ -418,5 +415,196 @@ public class Controller implements Initializable {
 
   private boolean structurallyStableModel(int numberOfNegativeCycles) {
     return numberOfNegativeCycles % 2 != 0;
+  }
+
+
+
+  @FXML
+  private TextField impulseVectorField;
+
+  @FXML
+  private void onRunImpulseSimulation() {
+    String input = impulseVectorField.getText().trim();
+    if (input.isEmpty()) {
+      showAlert("Введите вектор импульса!");
+      return;
+    }
+
+    try {
+      String[] parts = input.split(",");
+      double[] vector = new double[parts.length];
+      for (int i = 0; i < parts.length; i++) {
+        vector[i] = Double.parseDouble(parts[i].trim());
+      }
+
+      if (graphView == null || !(graphView.getModel() instanceof Digraph)) {
+        showAlert("Граф не инициализирован.");
+        return;
+      }
+
+      Digraph<String, EdgeWeight> graph = (Digraph<String, EdgeWeight>) graphView.getModel();
+      List<Vertex<String>> verticesInOrder = getVerticesInOrder(graph);
+
+      if (vector.length != verticesInOrder.size()) {
+        showAlert("Вектор должен содержать " + verticesInOrder.size() + " значений (по числу вершин)!");
+        return;
+      }
+
+      int steps = 10;
+      double[][] history = runImpulseSimulation(vector, steps);
+
+      // Сохраняем для последующих обновлений
+      this.lastSimulationResult = history;
+      this.lastVerticesInOrder = verticesInOrder;
+      this.lastSteps = steps;
+
+      // Создаём/обновляем чекбоксы
+      createVertexCheckBoxes(verticesInOrder);
+
+      // Отображаем все вершины по умолчанию
+      updateChart();
+
+    } catch (NumberFormatException e) {
+      showAlert("Некорректный формат вектора! Используйте числа, разделённые запятыми.");
+    } catch (IllegalArgumentException e) {
+      showAlert(e.getMessage());
+    }
+  }
+
+  private List<Vertex<String>> getVerticesInOrder(Digraph<String, EdgeWeight> graph) {
+    List<Vertex<String>> vertices = new ArrayList<>(graph.vertices());
+    vertices.sort(Comparator.comparing(v -> Integer.parseInt(v.element())));
+    return vertices;
+  }
+
+  private double[][] runImpulseSimulation(double[] impulseVector, int steps) {
+    if (graphView == null || !(graphView.getModel() instanceof Digraph)) {
+      return new double[0][0];
+    }
+
+    Digraph<String, EdgeWeight> graph = (Digraph<String, EdgeWeight>) graphView.getModel();
+    List<Vertex<String>> verticesInOrder = getVerticesInOrder(graph);
+    int n = verticesInOrder.size();
+
+    if (impulseVector.length != n) {
+      throw new IllegalArgumentException("Длина вектора должна быть " + n + " (по числу вершин).");
+    }
+
+    // Маппинг: имя вершины → индекс
+    Map<String, Integer> nameToIndex = new HashMap<>();
+    for (int i = 0; i < n; i++) {
+      nameToIndex.put(verticesInOrder.get(i).element(), i);
+    }
+
+    // История состояний v_i(t)
+    double[][] vHistory = new double[steps + 1][n];
+
+    // История импульсов p_i(t)
+    double[][] pHistory = new double[steps + 1][n];
+
+    // Шаг 0: v(0) = p(0) = impulseVector
+    for (int i = 0; i < n; i++) {
+      pHistory[0][i] = impulseVector[i];
+      vHistory[0][i] = impulseVector[i];
+    }
+
+    // Шаги t = 1, 2, ..., steps
+    for (int t = 1; t <= steps; t++) {
+      // 1. Вычисляем импульсы p(t) на основе p(t-1)
+      for (int i = 0; i < n; i++) {
+        Vertex<String> v = verticesInOrder.get(i);
+        double sum = 0.0;
+
+        try {
+          // Входящие рёбра к v: u → v
+          for (Edge<EdgeWeight, String> edge : graph.incidentEdges(v)) {
+            Vertex<String> u = graph.opposite(v, edge); // откуда пришло ребро
+            Integer uIndex = nameToIndex.get(u.element());
+            if (uIndex != null) {
+              double weight = edge.element().getValue();
+              sum += weight * pHistory[t - 1][uIndex];
+            }
+          }
+        } catch (InvalidVertexException e) {
+          e.printStackTrace();
+        }
+
+        pHistory[t][i] = sum;
+      }
+
+      // 2. Обновляем состояния: v(t) = v(t-1) + p(t)
+      for (int i = 0; i < n; i++) {
+        vHistory[t][i] = vHistory[t - 1][i] + pHistory[t][i];
+      }
+    }
+
+    // Возвращаем историю СОСТОЯНИЙ (v), а не импульсов (p)
+    return vHistory;
+  }
+
+  @FXML
+  private StackPane chartContainer;
+  private LineChart<Number, Number> impulseChart;
+
+  private void setupImpulseChart() {
+    if (impulseChart == null) {
+      NumberAxis xAxis = new NumberAxis();
+      NumberAxis yAxis = new NumberAxis();
+      impulseChart = new LineChart<>(xAxis, yAxis);
+      impulseChart.setTitle("Импульсное моделирование");
+      impulseChart.getXAxis().setLabel("Такт");
+      impulseChart.getYAxis().setLabel("Значение вершины");
+      impulseChart.setCreateSymbols(false);
+      impulseChart.setLegendVisible(true);
+      impulseChart.setPrefSize(600, 400);
+      chartContainer.getChildren().setAll(impulseChart);
+    }
+  }
+
+  @FXML
+  private ScrollPane vertexSelectionScrollPane;
+  @FXML
+  private FlowPane vertexSelectionPane;
+
+  // Храним последние результаты моделирования
+  private double[][] lastSimulationResult = null;
+  private List<Vertex<String>> lastVerticesInOrder = null;
+  private int lastSteps = 0;
+
+  // Чекбоксы для каждой вершины
+  private Map<Vertex<String>, CheckBox> vertexCheckBoxes = new HashMap<>();
+
+  private void createVertexCheckBoxes(List<Vertex<String>> vertices) {
+    vertexSelectionPane.getChildren().clear();
+    vertexCheckBoxes.clear();
+
+    for (Vertex<String> v : vertices) {
+      CheckBox cb = new CheckBox("Вершина " + v.element());
+      cb.setSelected(true); // по умолчанию отображаем все
+      cb.setOnAction(e -> updateChart()); // при изменении — обновляем график
+      vertexCheckBoxes.put(v, cb);
+      vertexSelectionPane.getChildren().add(cb);
+    }
+  }
+
+  private void updateChart() {
+    if (lastSimulationResult == null || impulseChart == null) return;
+
+    impulseChart.getData().clear();
+
+    for (int i = 0; i < lastVerticesInOrder.size(); i++) {
+      Vertex<String> v = lastVerticesInOrder.get(i);
+      CheckBox cb = vertexCheckBoxes.get(v);
+      if (cb != null && cb.isSelected()) {
+        XYChart.Series<Number, Number> series = new XYChart.Series<>();
+        series.setName("Вершина " + v.element());
+
+        for (int t = 0; t <= lastSteps; t++) {
+          series.getData().add(new XYChart.Data<>(t, lastSimulationResult[t][i]));
+        }
+
+        impulseChart.getData().add(series);
+      }
+    }
   }
 }
