@@ -70,6 +70,24 @@ This should help you understand which styles you can apply to each type of eleme
     -fx-opacity: 0.8;
 }
 
+.edge-dashed {
+    -fx-stroke-width: 2;
+    -fx-stroke: #FF6D66;
+    -fx-stroke-dash-array: 2 5 2 5;
+    -fx-fill: transparent; /* important to keep for curved edges */
+    -fx-stroke-line-cap: round;
+    -fx-opacity: 0.8;
+}
+
+.edge-dashed-selected {
+    -fx-stroke-width: 3;
+    -fx-stroke: #F1C232;
+    -fx-stroke-dash-array: 2 5 2 5;
+    -fx-fill: transparent;
+    -fx-stroke-line-cap: round;
+    -fx-opacity: 0.8;
+}
+
 .edge:hover {
     -fx-stroke-width: 3;
 }
