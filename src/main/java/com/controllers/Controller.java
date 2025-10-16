@@ -255,53 +255,89 @@ public class Controller implements Initializable {
 
   private List<List<Vertex<String>>> findAllCycles(Digraph<String, Double> digraph) {
     List<List<Vertex<String>>> allCycles = new ArrayList<>();
-    Set<Vertex<String>> visited = new HashSet<>();
-    Set<Vertex<String>> recursionStack = new HashSet<>();
-    List<Vertex<String>> path = new ArrayList<>();
+    List<Vertex<String>> vertices = new ArrayList<>(digraph.vertices());
 
-    for (Vertex<String> vertex : digraph.vertices()) {
-      if (!visited.contains(vertex)) {
-        dfsForCycles(digraph, vertex, visited, recursionStack, path, allCycles);
-      }
+    for (Vertex<String> start : vertices) {
+      List<Vertex<String>> path = new ArrayList<>();
+      Set<Vertex<String>> pathSet = new HashSet<>(); // для быстрой проверки
+      findCyclesFrom(digraph, start, start, path, pathSet, allCycles);
     }
-    return allCycles;
+
+    // Уберём дубликаты (например, A→B→C→A и B→C→A→B)
+    return removeDuplicateCycles(allCycles);
   }
 
-  private void dfsForCycles(
+  private void findCyclesFrom(
     Digraph<String, Double> digraph,
+    Vertex<String> start,
     Vertex<String> current,
-    Set<Vertex<String>> visited,
-    Set<Vertex<String>> recursionStack,
     List<Vertex<String>> path,
+    Set<Vertex<String>> pathSet,
     List<List<Vertex<String>>> allCycles
   ) {
-    visited.add(current);
-    recursionStack.add(current);
     path.add(current);
+    pathSet.add(current);
 
     try {
-      // Используем ПРАВИЛЬНЫЙ метод: outboundEdges
       for (Edge<Double, String> edge : digraph.outboundEdges(current)) {
         Vertex<String> neighbor = digraph.opposite(current, edge);
 
-        if (!visited.contains(neighbor)) {
-          dfsForCycles(digraph, neighbor, visited, recursionStack, path, allCycles);
-        } else if (recursionStack.contains(neighbor)) {
-          // Цикл найден
-          int startIndex = path.indexOf(neighbor);
-          List<Vertex<String>> cycle = new ArrayList<>(
-            path.subList(startIndex, path.size())
-          );
-          cycle.add(neighbor); // замыкаем
+        if (neighbor.equals(start) && path.size() > 1) {
+          // Нашли цикл
+          List<Vertex<String>> cycle = new ArrayList<>(path);
+          cycle.add(start); // замыкаем
           allCycles.add(cycle);
+        } else if (!pathSet.contains(neighbor)) {
+          // Продолжаем DFS
+          findCyclesFrom(digraph, start, neighbor, path, pathSet, allCycles);
         }
+        // Если neighbor уже в path — игнорируем (избегаем не простых циклов)
       }
     } catch (InvalidVertexException e) {
       e.printStackTrace();
     }
 
+    // Backtrack
     path.remove(path.size() - 1);
-    recursionStack.remove(current);
+    pathSet.remove(current);
+  }
+
+  private List<List<Vertex<String>>> removeDuplicateCycles(List<List<Vertex<String>>> cycles) {
+    Set<List<Vertex<String>>> uniqueCycles = new HashSet<>();
+
+    for (List<Vertex<String>> cycle : cycles) {
+      // Убираем последний элемент (дубль первого)
+      List<Vertex<String>> simpleCycle = new ArrayList<>(cycle.subList(0, cycle.size() - 1));
+
+      // Нормализуем: сдвигаем, чтобы начинать с минимальной вершины (по имени)
+      int minIndex = 0;
+      String minName = simpleCycle.get(0).element();
+      for (int i = 1; i < simpleCycle.size(); i++) {
+        String name = simpleCycle.get(i).element();
+        if (name.compareTo(minName) < 0) {
+          minName = name;
+          minIndex = i;
+        }
+      }
+
+      // Создаём нормализованный цикл
+      List<Vertex<String>> normalized = new ArrayList<>();
+      for (int i = 0; i < simpleCycle.size(); i++) {
+        normalized.add(simpleCycle.get((minIndex + i) % simpleCycle.size()));
+      }
+
+      uniqueCycles.add(normalized);
+    }
+
+    // Возвращаем в исходном виде (с замыканием)
+    List<List<Vertex<String>>> result = new ArrayList<>();
+    for (List<Vertex<String>> cycle : uniqueCycles) {
+      List<Vertex<String>> fullCycle = new ArrayList<>(cycle);
+      fullCycle.add(cycle.get(0)); // замыкаем
+      result.add(fullCycle);
+    }
+
+    return result;
   }
 
   private boolean isNegativeCycle(Digraph<String, Double> digraph, List<Vertex<String>> cycle) {
