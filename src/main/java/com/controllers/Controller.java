@@ -333,12 +333,10 @@ public class Controller implements Initializable {
     Graph<String, EdgeWeight> graph = graphView.getModel();
 
     StringBuilder report = new StringBuilder();
-    report.append("=== Структурный анализ графа ===\n\n");
-
     int vertexCount = graph.vertices().size();
     int edgeCount = graph.edges().size();
     report.append("Вершин: ").append(vertexCount).append("\n");
-    report.append("Рёбер: ").append(edgeCount).append("\n\n");
+    report.append("Рёбер: ").append(edgeCount).append("\n");
 
     if (!(graph instanceof Digraph)) {
       report.append("Анализ циклов поддерживается только для ориентированных графов.\n");
@@ -349,7 +347,6 @@ public class Controller implements Initializable {
     Digraph<String, EdgeWeight> digraph = (Digraph<String, EdgeWeight>) graph;
 
     List<List<Vertex<String>>> cycles = findAllCycles(digraph);
-    report.append("Найдено циклов: ").append(cycles.size()).append("\n");
 
     int negativeCycles = 0;
     for (int i = 0; i < cycles.size(); i++) {
@@ -363,8 +360,8 @@ public class Controller implements Initializable {
         .collect(Collectors.joining(" → ")));
       report.append(" (").append(isNegative ? "отрицательный" : "положительный").append(")");
     }
-
-    report.append("\n\nОтрицательных циклов: ").append(negativeCycles).append("\n");
+    report.append("\n\nЦиклов: ").append(cycles.size()).append("\n");
+    report.append("Отрицательных циклов: ").append(negativeCycles).append("\n");
 
     report.append("\nСтруктурная устойчивость: ");
     if (structurallyStableModel(negativeCycles)) {
@@ -374,7 +371,18 @@ public class Controller implements Initializable {
     }
     report.append("\n");
 
-    report.append("Анализ завершён.\n");
+    report.append("Устойчивость по возмущению: ");
+    double spectralRadius = computeSpectralRadius(digraph);
+    if (!Double.isNaN(spectralRadius)) {
+      report.append(String.format("%.4f", spectralRadius));
+      if (spectralRadius < 1.0) {
+        report.append(" < 1, Да");
+      } else {
+        report.append(" > 1, Нет");
+      }
+    } else {
+      report.append("Ошибка вычисления");
+    }
     structuralAnalysisText.setText(report.toString());
   }
 
@@ -489,11 +497,6 @@ public class Controller implements Initializable {
     }
     return null;
   }
-
-  private boolean structurallyStableModel(int numberOfNegativeCycles) {
-    return numberOfNegativeCycles % 2 != 0;
-  }
-
 
 
   @FXML
@@ -701,4 +704,99 @@ public class Controller implements Initializable {
 
   @FXML
   private TextField stepsField;
+
+  private boolean structurallyStableModel(int numberOfNegativeCycles) {
+    return numberOfNegativeCycles % 2 != 0;
+  }
+
+
+  private double computeSpectralRadius(Digraph<String, EdgeWeight> graph) {
+    List<Vertex<String>> vertices = getVerticesInOrder(graph);
+    int n = vertices.size();
+
+    // Маппинг имя → индекс
+    Map<String, Integer> nameToIndex = new HashMap<>();
+    for (int i = 0; i < n; i++) {
+      nameToIndex.put(vertices.get(i).element(), i);
+    }
+
+    // Строим матрицу A (A[i][j] = вес ребра i → j)
+    double[][] A = new double[n][n];
+    for (int i = 0; i < n; i++) {
+      Vertex<String> from = vertices.get(i);
+      try {
+        for (Edge<EdgeWeight, String> edge : graph.outboundEdges(from)) {
+          Vertex<String> to = graph.opposite(from, edge);
+          Integer j = nameToIndex.get(to.element());
+          if (j != null) {
+            A[i][j] = edge.element().getValue();
+          }
+        }
+      } catch (InvalidVertexException e) {
+        e.printStackTrace();
+      }
+    }
+
+    // Матрица системы: A^T
+    double[][] AT = new double[n][n];
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        AT[i][j] = A[j][i];
+      }
+    }
+
+    // Степенной метод
+    double[] x = new double[n];
+    // Инициализируем случайным вектором
+    for (int i = 0; i < n; i++) {
+      x[i] = Math.random();
+    }
+
+    double lambda = 0;
+    int maxIterations = 1000;
+    double tolerance = 1e-6;
+
+    for (int iter = 0; iter < maxIterations; iter++) {
+      // y = A^T * x
+      double[] y = new double[n];
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          y[i] += AT[i][j] * x[j];
+        }
+      }
+
+      // Норма вектора y
+      double norm = 0;
+      for (double v : y) {
+        norm = Math.max(norm, Math.abs(v));
+      }
+
+      if (norm == 0) return 0;
+
+      // Новый вектор x = y / norm
+      double[] newX = new double[n];
+      for (int i = 0; i < n; i++) {
+        newX[i] = y[i] / norm;
+      }
+
+      // Оценка собственного значения: lambda = (x^T * y) / (x^T * x)
+      double numerator = 0, denominator = 0;
+      for (int i = 0; i < n; i++) {
+        numerator += x[i] * y[i];
+        denominator += x[i] * x[i];
+      }
+      double newLambda = denominator != 0 ? Math.abs(numerator / denominator) : 0;
+
+      // Проверка сходимости
+      if (Math.abs(newLambda - lambda) < tolerance) {
+        return newLambda;
+      }
+
+      lambda = newLambda;
+      x = newX;
+    }
+
+    return lambda; // возвращаем последнее приближение
+  }
+
 }

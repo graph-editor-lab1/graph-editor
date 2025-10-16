@@ -52,7 +52,8 @@
 
                     <HBox spacing="10" alignment="CENTER_LEFT">
                         <Label text="Вектор импульса:"/>
-                        <TextField fx:id="impulseVectorField" promptText="Например: 1, 0, 1, 0" HBox.hgrow="ALWAYS"/>
+                        <TextField fx:id="impulseVectorField" text="1,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+                                   promptText="Например: 1, 0, 1, 0" HBox.hgrow="ALWAYS"/>
                     </HBox>
 
                     <HBox spacing="10" alignment="CENTER_LEFT" layoutY="40.0">
