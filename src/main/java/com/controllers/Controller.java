@@ -248,6 +248,15 @@ public class Controller implements Initializable {
     }
 
     report.append("\n\nОтрицательных циклов: ").append(negativeCycles).append("\n");
+
+    report.append("\nСтруктурная устойчивость: ");
+    if (structurallyStableModel(negativeCycles)) {
+      report.append("Да");
+    } else {
+      report.append("Нет");
+    }
+    report.append("\n");
+
     report.append("Анализ завершён.\n");
 
     structuralAnalysisText.setText(report.toString());
@@ -368,5 +377,9 @@ public class Controller implements Initializable {
       e.printStackTrace();
     }
     return null;
+  }
+
+  private boolean structurallyStableModel(int numberOfNegativeCycles) {
+    return numberOfNegativeCycles % 2 != 0;
   }
 }
