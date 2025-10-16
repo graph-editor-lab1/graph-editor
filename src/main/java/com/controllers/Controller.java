@@ -10,6 +10,11 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 
 import java.net.URL;
 import java.util.*;
@@ -32,40 +37,84 @@ public class Controller implements Initializable {
   @FXML
   private void onAddVertex() {
     showTextInputDialog(
-      "Создание новой вершины",
-      "Введите название новой вершины",
-      name -> {
-        try {
-          graphView.getModel().insertVertex(name);
-        } catch (InvalidVertexException _ignored) {
-          showAlert("Вершина с данным именем уже существует!");
-        }
+        "Создание новой вершины",
+        "Введите название новой вершины",
+        name -> {
+          try {
+            graphView.getModel().insertVertex(name);
+          } catch (InvalidVertexException _ignored) {
+            showAlert("Вершина с данным именем уже существует!");
+          }
 
-        new ArrayList<>(selected).forEach(this::select);
-        graphView.update();
-      }
+          new ArrayList<>(selected).forEach(this::select);
+          graphView.update();
+        }
     );
   }
 
   @FXML
+  @SuppressWarnings("unchecked")
   private void onEditSelected() {
     if (selected.size() == 1) {
+      SmartStylableNode item = selected.get(0);
       showTextInputDialog(
-        "Изменение",
-        "Введите новое значение",
-        value -> {
-          // Library bug with replace
-//                          if (item instanceof SmartGraphVertex) {
-//                              Vertex<String> vertex = ((SmartGraphVertex<String>) item).getUnderlyingVertex();
-//                              graphView.getModel().replace(vertex, value);
-//                          } else if (item instanceof SmartGraphEdge) {
-//                              Edge<String, String> edge = ((SmartGraphEdge<String, String>) item).getUnderlyingEdge();
-//                              graphView.getModel().replace(edge, value);
-//                          }
+          "Изменение",
+          "Введите новое значение",
+          value -> {
+            if (item instanceof SmartGraphVertex) {
+              Vertex<String> vertex = ((SmartGraphVertex<String>) item).getUnderlyingVertex();
+              Vertex<String> newVertex = graphView.getModel().insertVertex(value);
+              graphView.updateAndWait();
+              SmartGraphVertex<String> newItem = (SmartGraphVertex<String>) graphView.getStylableVertex(newVertex);
+              newItem.setPosition(
+                  ((SmartGraphVertex<String>) item).getPositionCenterX(),
+                  ((SmartGraphVertex<String>) item).getPositionCenterY()
+              );
 
-//                          new ArrayList<>(selected).forEach(this::select);
-//                          graphView.update();
-        }
+              graphView
+                  .getModel()
+                  .edges()
+                  .stream()
+                  .filter(e -> Arrays.asList(e.vertices()).contains(vertex))
+                  .collect(Collectors.toList())
+                  .forEach(edge -> {
+                    if (vertex.equals(edge.vertices()[0])) {
+                      Edge<EdgeWeight, String> newEdge = graphView
+                          .getModel()
+                          .insertEdge(
+                              newVertex,
+                              edge.vertices()[1],
+                              new EdgeWeight(edge.element().getValue())
+                          );
+                      setEdgeStyle(newEdge);
+                      graphView.getModel().removeEdge(edge);
+                    } else if (vertex.equals(edge.vertices()[1])) {
+                      Edge<EdgeWeight, String> newEdge = graphView
+                          .getModel()
+                          .insertEdge(
+                              edge.vertices()[0],
+                              newVertex,
+                              new EdgeWeight(edge.element().getValue())
+                          );
+                      setEdgeStyle(newEdge);
+                      graphView.getModel().removeEdge(edge);
+                    }
+                  });
+              graphView.getModel().removeVertex(vertex);
+            } else if (item instanceof SmartGraphEdge) {
+              Edge<EdgeWeight, String> edge = ((SmartGraphEdge<EdgeWeight, String>) item).getUnderlyingEdge();
+
+              Edge<EdgeWeight, String> newEdge = graphView
+                  .getModel()
+                  .insertEdge(edge.vertices()[0], edge.vertices()[1], new EdgeWeight(Double.parseDouble(value.trim())));
+
+              setEdgeStyle(newEdge);
+              graphView.getModel().removeEdge(edge);
+            }
+
+            new ArrayList<>(selected).forEach(this::select);
+            graphView.update();
+          }
       );
     } else {
       showAlert("Выберите ровно один элемент для редактирования!");
@@ -73,33 +122,34 @@ public class Controller implements Initializable {
   }
 
   @FXML
+  @SuppressWarnings("unchecked")
   private void onConnectSelected() {
     if (selected.size() == 2 && selected.stream().allMatch(item -> item instanceof SmartGraphVertex)) {
       showTextInputDialog(
-        "Создание связи",
-        "Введите вес связи (число от -1 до 1)",
-        value -> {
-          try {
-            double weight = Double.parseDouble(value.trim());
-            if (weight < -1.0 || weight > 1.0) {
-              showAlert("Вес должен быть в диапазоне от -1 до 1!");
-              return;
+          "Создание связи",
+          "Введите вес связи (число от -1 до 1)",
+          value -> {
+            try {
+              double weight = Double.parseDouble(value.trim());
+              if (weight < -1.0 || weight > 1.0) {
+                showAlert("Вес должен быть в диапазоне от -1 до 1!");
+                return;
+              }
+
+              Edge<EdgeWeight, String> edge = graphView.getModel().insertEdge(
+                  ((SmartGraphVertex<String>) selected.get(0)).getUnderlyingVertex(),
+                  ((SmartGraphVertex<String>) selected.get(1)).getUnderlyingVertex(),
+                  new EdgeWeight(weight)
+              );
+
+              setEdgeStyle(edge);
+              new ArrayList<>(selected).forEach(this::select);
+            } catch (NumberFormatException e) {
+              showAlert("Некорректное число!");
+            } catch (InvalidVertexException | InvalidEdgeException e) {
+              showAlert("Не удалось создать ребро: " + e.getMessage());
             }
-
-            graphView.getModel().insertEdge(
-              ((SmartGraphVertex<String>) selected.get(0)).getUnderlyingVertex(),
-              ((SmartGraphVertex<String>) selected.get(1)).getUnderlyingVertex(),
-              new EdgeWeight(weight)
-            );
-
-            new ArrayList<>(selected).forEach(this::select);
-            graphView.update();
-          } catch (NumberFormatException e) {
-            showAlert("Некорректное число!");
-          } catch (InvalidVertexException | InvalidEdgeException e) {
-            showAlert("Не удалось создать ребро: " + e.getMessage());
           }
-        }
       );
     } else {
       showAlert("Выберите ровно две вершины для соединения!");
@@ -110,15 +160,27 @@ public class Controller implements Initializable {
   @SuppressWarnings("unchecked")
   private void onRemoveSelected() {
     selected.forEach(item -> {
-      if (item instanceof SmartGraphVertex) {
+      if (item instanceof SmartGraphVertex
+          && graphView.getModel().vertices().contains(((SmartGraphVertex<String>) item).getUnderlyingVertex())
+      ) {
         graphView.getModel().removeVertex(((SmartGraphVertex<String>) item).getUnderlyingVertex());
-      } else if (item instanceof SmartGraphEdge) {
+      } else if (item instanceof SmartGraphEdge
+          && graphView.getModel().edges().contains(((SmartGraphEdge<EdgeWeight, String>) item).getUnderlyingEdge())
+      ) {
         graphView.getModel().removeEdge(((SmartGraphEdge<EdgeWeight, String>) item).getUnderlyingEdge());
       }
     });
 
     new ArrayList<>(selected).forEach(this::select);
     graphView.update();
+  }
+
+  @SuppressWarnings("unchecked")
+  private void setEdgeStyle(Edge<EdgeWeight, String> edge) {
+    graphView.updateAndWait();
+    SmartGraphEdge<EdgeWeight, String> smartEdge = (SmartGraphEdge<EdgeWeight, String>) graphView
+        .getStylableEdge(edge);
+    smartEdge.setStyleClass(edge.element().getValue() < 0 ? "edge-dashed" : "edge");
   }
 
   public void initGraphView() {
@@ -136,6 +198,12 @@ public class Controller implements Initializable {
     graphView.setVertexDoubleClickAction(this::select);
     graphView.setEdgeDoubleClickAction(this::select);
 
+    graphView
+        .getSmartEdges()
+        .stream()
+        .filter(e -> e.getUnderlyingEdge().element().getValue() < 0)
+        .forEach(e -> e.setStyleClass("edge-dashed"));
+
     HBox.setHgrow(graphView, Priority.ALWAYS);
     graphBox.getChildren().add(graphView);
   }
@@ -151,37 +219,37 @@ public class Controller implements Initializable {
 
     // Рёбра из JSON (vertex1 → vertex2, weight)
     double[][] edges = {
-      {0, 1, 0.6},
-      {10, 0, 0.7},
-      {13, 1, 0.8},
-      {7, 1, -0.8},
-      {5, 1, 0.3},
-      {1, 12, 0.7},
-      {1, 8, 0.9},
-      {6, 1, 0.7},
-      {3, 1, 0.4},
-      {1, 4, 0.7},
-      {4, 8, 0.5},
-      {14, 4, 0.8},
-      {14, 13, 0.8},
-      {13, 9, 0.5},
-      {13, 5, 0.7},
-      {13, 10, -0.8},
-      {2, 6, 0.6},
-      {2, 8, 0.7},
-      {14, 2, 0.7},
-      {14, 3, 0.9},
-      {5, 9, 0.5},
-      {6, 9, 0.4},
-      {7, 8, 0.9},
-      {10, 7, -0.7},
-      {8, 14, 0.9},
-      {8, 9, 0.5},
-      {11, 9, 0.6},
-      {9, 12, -0.6},
-      {11, 12, -0.7},
-      {14, 11, 0.8},
-      {12, 8, -0.6}
+        {0, 1, 0.6},
+        {10, 0, 0.7},
+        {13, 1, 0.8},
+        {7, 1, -0.8},
+        {5, 1, 0.3},
+        {1, 12, 0.7},
+        {1, 8, 0.9},
+        {6, 1, 0.7},
+        {3, 1, 0.4},
+        {1, 4, 0.7},
+        {4, 8, 0.5},
+        {14, 4, 0.8},
+        {14, 13, 0.8},
+        {13, 9, 0.5},
+        {13, 5, 0.7},
+        {13, 10, -0.8},
+        {2, 6, 0.6},
+        {2, 8, 0.7},
+        {14, 2, 0.7},
+        {14, 3, 0.9},
+        {5, 9, 0.5},
+        {6, 9, 0.4},
+        {7, 8, 0.9},
+        {10, 7, -0.7},
+        {8, 14, 0.9},
+        {8, 9, 0.5},
+        {11, 9, 0.6},
+        {9, 12, -0.6},
+        {11, 12, -0.7},
+        {14, 11, 0.8},
+        {12, 8, -0.6}
     };
 
     for (double[] edge : edges) {
@@ -208,20 +276,23 @@ public class Controller implements Initializable {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private String getDefaultStyleClass(SmartStylableNode item) {
     if (item instanceof SmartGraphVertex) {
       return "vertex";
     } else if (item instanceof SmartGraphEdge) {
-      return "edge";
+      return ((SmartGraphEdge<EdgeWeight, String>) item).getUnderlyingEdge().element().getValue() < 0
+          ? "edge-dashed"
+          : "edge";
     } else {
       return "";
     }
   }
 
   private void showTextInputDialog(
-    String title,
-    String header,
-    Consumer<String> action
+      String title,
+      String header,
+      Consumer<String> action
   ) {
     TextInputDialog dialog = new TextInputDialog("");
     dialog.setTitle(title);
