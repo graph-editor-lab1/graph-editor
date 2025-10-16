@@ -55,6 +55,11 @@
                         <TextField fx:id="impulseVectorField" promptText="Например: 1, 0, 1, 0" HBox.hgrow="ALWAYS"/>
                     </HBox>
 
+                    <HBox spacing="10" alignment="CENTER_LEFT" layoutY="40.0">
+                        <Label text="Количество тактов:"/>
+                        <TextField fx:id="stepsField" text="10" prefWidth="60"/>
+                    </HBox>
+
                     <Button fx:id="runImpulseButton" text="Запустить моделирование" onAction="#onRunImpulseSimulation"
                             prefHeight="30.0" style="-fx-padding: 5 10 5 10;" alignment="CENTER"/>
 

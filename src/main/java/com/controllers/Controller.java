@@ -32,6 +32,12 @@ public class Controller implements Initializable {
   public void initialize(URL url, ResourceBundle resourceBundle) {
     createGraphView();
     setupImpulseChart();
+
+    stepsField.textProperty().addListener((observable, oldValue, newValue) -> {
+      if (!newValue.matches("\\d*")) {
+        stepsField.setText(newValue.replaceAll("[^\\d]", ""));
+      }
+    });
   }
 
   @FXML
@@ -521,7 +527,21 @@ public class Controller implements Initializable {
         return;
       }
 
-      int steps = 10;
+      int steps;
+      try {
+        steps = Integer.parseInt(stepsField.getText().trim());
+        if (steps < 0) {
+          showAlert("Количество тактов не может быть отрицательным!");
+          return;
+        }
+        if (steps > 100) {
+          showAlert("Слишком много тактов! Максимум — 100.");
+          return;
+        }
+      } catch (NumberFormatException e) {
+        showAlert("Некорректное число тактов!");
+        return;
+      }
       double[][] history = runImpulseSimulation(vector, steps);
 
       // Сохраняем для последующих обновлений
@@ -678,4 +698,7 @@ public class Controller implements Initializable {
       }
     }
   }
+
+  @FXML
+  private TextField stepsField;
 }
