@@ -1,5 +1,6 @@
 package com.controllers;
 
+import com.EdgeWeight;
 import com.brunomnsilva.smartgraph.graph.*;
 import com.brunomnsilva.smartgraph.graphview.*;
 import javafx.fxml.FXML;
@@ -22,7 +23,7 @@ public class Controller implements Initializable {
   @FXML
   private HBox graphBox;
 
-  private SmartGraphPanel<String, Double> graphView;
+  private SmartGraphPanel<String, EdgeWeight> graphView;
 
   private final List<SmartStylableNode> selected = new ArrayList<>();
 
@@ -91,13 +92,15 @@ public class Controller implements Initializable {
             graphView.getModel().insertEdge(
               ((SmartGraphVertex<String>) selected.get(0)).getUnderlyingVertex(),
               ((SmartGraphVertex<String>) selected.get(1)).getUnderlyingVertex(),
-              weight
+              new EdgeWeight(weight)
             );
 
             new ArrayList<>(selected).forEach(this::select);
             graphView.update();
           } catch (NumberFormatException e) {
             showAlert("Некорректное число!");
+          } catch (InvalidVertexException | InvalidEdgeException e) {
+            showAlert("Не удалось создать ребро: " + e.getMessage());
           }
         }
       );
@@ -113,7 +116,7 @@ public class Controller implements Initializable {
       if (item instanceof SmartGraphVertex) {
         graphView.getModel().removeVertex(((SmartGraphVertex<String>) item).getUnderlyingVertex());
       } else if (item instanceof SmartGraphEdge) {
-        graphView.getModel().removeEdge(((SmartGraphEdge<Double, String>) item).getUnderlyingEdge());
+        graphView.getModel().removeEdge(((SmartGraphEdge<EdgeWeight, String>) item).getUnderlyingEdge());
       }
     });
 
@@ -140,18 +143,60 @@ public class Controller implements Initializable {
     graphBox.getChildren().add(graphView);
   }
 
-  private Graph<String, Double> getDefaultGraph() {
-    Digraph<String, Double> d = new DigraphEdgeList<>();
-    Vertex<String> vA = d.insertVertex("A");
-    Vertex<String> vB = d.insertVertex("B");
-    Vertex<String> vC = d.insertVertex("C");
-    Vertex<String> vD = d.insertVertex("D");
+  private Graph<String, EdgeWeight> getDefaultGraph() {
+    Digraph<String, EdgeWeight> d = new DigraphEdgeList<>();
 
-    d.insertEdge(vA, vB, 0.5);
-    d.insertEdge(vB, vC, -0.3);
-    d.insertEdge(vC, vD, 0.7);
-    d.insertEdge(vD, vA, -0.2);
-    d.insertEdge(vA, vC, 0.4);
+    // Создаём вершины
+    Vertex<String>[] vertices = new Vertex[15];
+    for (int i = 0; i < 15; i++) {
+      vertices[i] = d.insertVertex(String.valueOf(i + 1));
+    }
+
+    // Рёбра из JSON (vertex1 → vertex2, weight)
+    double[][] edges = {
+      {0, 1, 0.6},
+      {10, 0, 0.7},
+      {13, 1, 0.8},
+      {7, 1, -0.8},
+      {5, 1, 0.3},
+      {1, 12, 0.7},
+      {1, 8, 0.9},
+      {6, 1, 0.7},
+      {3, 1, 0.4},
+      {1, 4, 0.7},
+      {4, 8, 0.5},
+      {14, 4, 0.8},
+      {14, 13, 0.8},
+      {13, 9, 0.5},
+      {13, 5, 0.7},
+      {13, 10, -0.8},
+      {2, 6, 0.6},
+      {2, 8, 0.7},
+      {14, 2, 0.7},
+      {14, 3, 0.9},
+      {5, 9, 0.5},
+      {6, 9, 0.4},
+      {7, 8, 0.9},
+      {10, 7, -0.7},
+      {8, 14, 0.9},
+      {8, 9, 0.5},
+      {11, 9, 0.6},
+      {9, 12, -0.6},
+      {11, 12, -0.7},
+      {14, 11, 0.8},
+      {12, 8, -0.6}
+    };
+
+    for (double[] edge : edges) {
+      int from = (int) edge[0];
+      int to = (int) edge[1];
+      double weight = edge[2];
+      try {
+        d.insertEdge(vertices[from], vertices[to], new EdgeWeight(weight));
+      } catch (InvalidVertexException | InvalidEdgeException e) {
+        System.err.println("Ошибка при добавлении ребра: " + e.getMessage());
+      }
+    }
 
     return d;
   }
@@ -211,7 +256,7 @@ public class Controller implements Initializable {
       return;
     }
 
-    Graph<String, Double> graph = graphView.getModel();
+    Graph<String, EdgeWeight> graph = graphView.getModel();
 
     StringBuilder report = new StringBuilder();
     report.append("=== Структурный анализ графа ===\n\n");
@@ -227,9 +272,8 @@ public class Controller implements Initializable {
       return;
     }
 
-    Digraph<String, Double> digraph = (Digraph<String, Double>) graph;
+    Digraph<String, EdgeWeight> digraph = (Digraph<String, EdgeWeight>) graph;
 
-    // Найти все циклы
     List<List<Vertex<String>>> cycles = findAllCycles(digraph);
     report.append("Найдено циклов: ").append(cycles.size()).append("\n");
 
@@ -241,7 +285,7 @@ public class Controller implements Initializable {
 
       report.append("\nЦикл ").append(i + 1).append(": ");
       report.append(cycle.stream()
-        .limit(cycle.size() - 1) // последний элемент — дубль первого
+        .limit(cycle.size() - 1)
         .map(Vertex::element)
         .collect(Collectors.joining(" → ")));
       report.append(" (").append(isNegative ? "отрицательный" : "положительный").append(")");
@@ -258,11 +302,10 @@ public class Controller implements Initializable {
     report.append("\n");
 
     report.append("Анализ завершён.\n");
-
     structuralAnalysisText.setText(report.toString());
   }
 
-  private List<List<Vertex<String>>> findAllCycles(Digraph<String, Double> digraph) {
+  private List<List<Vertex<String>>> findAllCycles(Digraph<String, EdgeWeight> digraph) {
     List<List<Vertex<String>>> allCycles = new ArrayList<>();
     List<Vertex<String>> vertices = new ArrayList<>(digraph.vertices());
 
@@ -277,7 +320,7 @@ public class Controller implements Initializable {
   }
 
   private void findCyclesFrom(
-    Digraph<String, Double> digraph,
+    Digraph<String, EdgeWeight> digraph,
     Vertex<String> start,
     Vertex<String> current,
     List<Vertex<String>> path,
@@ -288,25 +331,20 @@ public class Controller implements Initializable {
     pathSet.add(current);
 
     try {
-      for (Edge<Double, String> edge : digraph.outboundEdges(current)) {
+      for (Edge<EdgeWeight, String> edge : digraph.outboundEdges(current)) {
         Vertex<String> neighbor = digraph.opposite(current, edge);
-
         if (neighbor.equals(start) && path.size() > 1) {
-          // Нашли цикл
           List<Vertex<String>> cycle = new ArrayList<>(path);
-          cycle.add(start); // замыкаем
+          cycle.add(start);
           allCycles.add(cycle);
         } else if (!pathSet.contains(neighbor)) {
-          // Продолжаем DFS
           findCyclesFrom(digraph, start, neighbor, path, pathSet, allCycles);
         }
-        // Если neighbor уже в path — игнорируем (избегаем не простых циклов)
       }
     } catch (InvalidVertexException e) {
       e.printStackTrace();
     }
 
-    // Backtrack
     path.remove(path.size() - 1);
     pathSet.remove(current);
   }
@@ -349,15 +387,15 @@ public class Controller implements Initializable {
     return result;
   }
 
-  private boolean isNegativeCycle(Digraph<String, Double> digraph, List<Vertex<String>> cycle) {
+  private boolean isNegativeCycle(Digraph<String, EdgeWeight> digraph, List<Vertex<String>> cycle) {
     double product = 1.0;
     try {
       for (int i = 0; i < cycle.size() - 1; i++) {
         Vertex<String> from = cycle.get(i);
         Vertex<String> to = cycle.get(i + 1);
-        Edge<Double, String> edge = findEdgeBetween(digraph, from, to);
+        Edge<EdgeWeight, String> edge = findEdgeBetween(digraph, from, to);
         if (edge != null) {
-          product *= edge.element();
+          product *= edge.element().getValue(); // ← получаем double
         }
       }
     } catch (InvalidVertexException e) {
@@ -366,9 +404,9 @@ public class Controller implements Initializable {
     return product < 0;
   }
 
-  private Edge<Double, String> findEdgeBetween(Digraph<String, Double> digraph, Vertex<String> u, Vertex<String> v) {
+  private Edge<EdgeWeight, String> findEdgeBetween(Digraph<String, EdgeWeight> digraph, Vertex<String> u, Vertex<String> v) {
     try {
-      for (Edge<Double, String> edge : digraph.outboundEdges(u)) {
+      for (Edge<EdgeWeight, String> edge : digraph.outboundEdges(u)) {
         if (digraph.opposite(u, edge).equals(v)) {
           return edge;
         }
