@@ -15,6 +15,7 @@ import javafx.scene.layout.VBox;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class Controller implements Initializable {
 
@@ -75,22 +76,29 @@ public class Controller implements Initializable {
 
   @FXML
   private void onConnectSelected() {
-    if (selected.size() == 2
-      && selected.stream().allMatch(item -> item instanceof SmartGraphVertex)
-    ) {
+    if (selected.size() == 2 && selected.stream().allMatch(item -> item instanceof SmartGraphVertex)) {
       showTextInputDialog(
         "Создание связи",
-        "Введите вес новой связи",
+        "Введите вес связи (число от -1 до 1)",
         value -> {
-          //noinspection unchecked
-          graphView.getModel().insertEdge(
-            ((SmartGraphVertex<String>) selected.get(0)).getUnderlyingVertex(),
-            ((SmartGraphVertex<String>) selected.get(1)).getUnderlyingVertex(),
-            Double.parseDouble(value)
-          );
+          try {
+            double weight = Double.parseDouble(value.trim());
+            if (weight < -1.0 || weight > 1.0) {
+              showAlert("Вес должен быть в диапазоне от -1 до 1!");
+              return;
+            }
 
-          new ArrayList<>(selected).forEach(this::select);
-          graphView.update();
+            graphView.getModel().insertEdge(
+              ((SmartGraphVertex<String>) selected.get(0)).getUnderlyingVertex(),
+              ((SmartGraphVertex<String>) selected.get(1)).getUnderlyingVertex(),
+              weight
+            );
+
+            new ArrayList<>(selected).forEach(this::select);
+            graphView.update();
+          } catch (NumberFormatException e) {
+            showAlert("Некорректное число!");
+          }
         }
       );
     } else {
@@ -142,7 +150,7 @@ public class Controller implements Initializable {
     d.insertEdge(vA, vB, 0.5);
     d.insertEdge(vB, vC, -0.3);
     d.insertEdge(vC, vD, 0.7);
-    d.insertEdge(vA, vD, -0.2);
+    d.insertEdge(vD, vA, -0.2);
     d.insertEdge(vA, vC, 0.4);
 
     return d;
@@ -208,50 +216,121 @@ public class Controller implements Initializable {
     StringBuilder report = new StringBuilder();
     report.append("=== Структурный анализ графа ===\n\n");
 
-    // 1. Количество вершин и рёбер
-    int vertexCount = 0;
-    for (Vertex<String> v : graph.vertices()) vertexCount++;
-    int edgeCount = 0;
-    for (Edge<String, String> e : graph.edges()) edgeCount++;
-
+    int vertexCount = graph.vertices().size();
+    int edgeCount = graph.edges().size();
     report.append("Вершин: ").append(vertexCount).append("\n");
     report.append("Рёбер: ").append(edgeCount).append("\n\n");
 
-    // 2. Степени вершин
-    if (graph instanceof Digraph) {
-      report.append("Степени вершин (входящие / исходящие):\n");
-      for (Vertex<String> v : graph.vertices()) {
-        int inDegree = 0;
-        int outDegree = 0;
-
-        // Подсчёт исходящих рёбер
-        for (Edge<String, String> e : graph.outgoingEdges(v)) {
-          outDegree++;
-        }
-
-        // Подсчёт входящих рёбер
-        for (Edge<String, String> e : graph.incomingEdges(v)) {
-          inDegree++;
-        }
-
-        report.append("  ").append(v.element()).append(": ")
-          .append(inDegree).append(" / ").append(outDegree).append("\n");
-      }
-    } else {
-      // Для неориентированного графа — просто считаем все инцидентные рёбра
-      report.append("Степени вершин:\n");
-      for (Vertex<String> v : graph.vertices()) {
-        int degree = 0;
-        for (Edge<String, String> e : graph.incidentEdges(v)) {
-          degree++;
-        }
-        report.append("  ").append(v.element()).append(": ").append(degree).append("\n");
-      }
+    if (!(graph instanceof Digraph)) {
+      report.append("Анализ циклов поддерживается только для ориентированных графов.\n");
+      structuralAnalysisText.setText(report.toString());
+      return;
     }
-    report.append("\n");
 
+    Digraph<String, Double> digraph = (Digraph<String, Double>) graph;
+
+    // Найти все циклы
+    List<List<Vertex<String>>> cycles = findAllCycles(digraph);
+    report.append("Найдено циклов: ").append(cycles.size()).append("\n");
+
+    int negativeCycles = 0;
+    for (int i = 0; i < cycles.size(); i++) {
+      List<Vertex<String>> cycle = cycles.get(i);
+      boolean isNegative = isNegativeCycle(digraph, cycle);
+      if (isNegative) negativeCycles++;
+
+      report.append("\nЦикл ").append(i + 1).append(": ");
+      report.append(cycle.stream()
+        .limit(cycle.size() - 1) // последний элемент — дубль первого
+        .map(Vertex::element)
+        .collect(Collectors.joining(" → ")));
+      report.append(" (").append(isNegative ? "отрицательный" : "положительный").append(")");
+    }
+
+    report.append("\n\nОтрицательных циклов: ").append(negativeCycles).append("\n");
     report.append("Анализ завершён.\n");
 
     structuralAnalysisText.setText(report.toString());
+  }
+
+  private List<List<Vertex<String>>> findAllCycles(Digraph<String, Double> digraph) {
+    List<List<Vertex<String>>> allCycles = new ArrayList<>();
+    Set<Vertex<String>> visited = new HashSet<>();
+    Set<Vertex<String>> recursionStack = new HashSet<>();
+    List<Vertex<String>> path = new ArrayList<>();
+
+    for (Vertex<String> vertex : digraph.vertices()) {
+      if (!visited.contains(vertex)) {
+        dfsForCycles(digraph, vertex, visited, recursionStack, path, allCycles);
+      }
+    }
+    return allCycles;
+  }
+
+  private void dfsForCycles(
+    Digraph<String, Double> digraph,
+    Vertex<String> current,
+    Set<Vertex<String>> visited,
+    Set<Vertex<String>> recursionStack,
+    List<Vertex<String>> path,
+    List<List<Vertex<String>>> allCycles
+  ) {
+    visited.add(current);
+    recursionStack.add(current);
+    path.add(current);
+
+    try {
+      // Используем ПРАВИЛЬНЫЙ метод: outboundEdges
+      for (Edge<Double, String> edge : digraph.outboundEdges(current)) {
+        Vertex<String> neighbor = digraph.opposite(current, edge);
+
+        if (!visited.contains(neighbor)) {
+          dfsForCycles(digraph, neighbor, visited, recursionStack, path, allCycles);
+        } else if (recursionStack.contains(neighbor)) {
+          // Цикл найден
+          int startIndex = path.indexOf(neighbor);
+          List<Vertex<String>> cycle = new ArrayList<>(
+            path.subList(startIndex, path.size())
+          );
+          cycle.add(neighbor); // замыкаем
+          allCycles.add(cycle);
+        }
+      }
+    } catch (InvalidVertexException e) {
+      e.printStackTrace();
+    }
+
+    path.remove(path.size() - 1);
+    recursionStack.remove(current);
+  }
+
+  private boolean isNegativeCycle(Digraph<String, Double> digraph, List<Vertex<String>> cycle) {
+    double product = 1.0;
+    try {
+      for (int i = 0; i < cycle.size() - 1; i++) {
+        Vertex<String> from = cycle.get(i);
+        Vertex<String> to = cycle.get(i + 1);
+        Edge<Double, String> edge = findEdgeBetween(digraph, from, to);
+        if (edge != null) {
+          product *= edge.element();
+        }
+      }
+    } catch (InvalidVertexException e) {
+      e.printStackTrace();
+    }
+    return product < 0;
+  }
+
+  private Edge<Double, String> findEdgeBetween(Digraph<String, Double> digraph, Vertex<String> u, Vertex<String> v) {
+    try {
+      for (Edge<Double, String> edge : digraph.outboundEdges(u)) {
+        if (digraph.opposite(u, edge).equals(v)) {
+          return edge;
+        }
+      }
+    } catch (InvalidVertexException e) {
+      e.printStackTrace();
+    }
+    return null;
   }
 }
