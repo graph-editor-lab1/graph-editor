@@ -86,7 +86,7 @@ public class Controller implements Initializable {
           graphView.getModel().insertEdge(
             ((SmartGraphVertex<String>) selected.get(0)).getUnderlyingVertex(),
             ((SmartGraphVertex<String>) selected.get(1)).getUnderlyingVertex(),
-            String.valueOf(Double.parseDouble(value))
+            Double.parseDouble(value)
           );
 
           new ArrayList<>(selected).forEach(this::select);
@@ -105,7 +105,7 @@ public class Controller implements Initializable {
       if (item instanceof SmartGraphVertex) {
         graphView.getModel().removeVertex(((SmartGraphVertex<String>) item).getUnderlyingVertex());
       } else if (item instanceof SmartGraphEdge) {
-        graphView.getModel().removeEdge(((SmartGraphEdge<String, String>) item).getUnderlyingEdge());
+        graphView.getModel().removeEdge(((SmartGraphEdge<Double, String>) item).getUnderlyingEdge());
       }
     });
 
@@ -132,18 +132,18 @@ public class Controller implements Initializable {
     graphBox.getChildren().add(graphView);
   }
 
-  private Graph<String, String> getDefaultGraph() {
-    Digraph<String, String> d = new DigraphEdgeList<>();
+  private Graph<String, Double> getDefaultGraph() {
+    Digraph<String, Double> d = new DigraphEdgeList<>();
     Vertex<String> vA = d.insertVertex("A");
     Vertex<String> vB = d.insertVertex("B");
     Vertex<String> vC = d.insertVertex("C");
     Vertex<String> vD = d.insertVertex("D");
 
-    d.insertEdge(vA, vB, "AB");
-    d.insertEdge(vB, vC, "BC");
-    d.insertEdge(vC, vD, "CD");
-    d.insertEdge(vA, vD, "AD");
-    d.insertEdge(vA, vC, "AC");
+    d.insertEdge(vA, vB, 0.5);
+    d.insertEdge(vB, vC, -0.3);
+    d.insertEdge(vC, vD, 0.7);
+    d.insertEdge(vA, vD, -0.2);
+    d.insertEdge(vA, vC, 0.4);
 
     return d;
   }
@@ -203,7 +203,7 @@ public class Controller implements Initializable {
       return;
     }
 
-    Graph<String, String> graph = graphView.getModel();
+    Graph<String, Double> graph = graphView.getModel();
 
     StringBuilder report = new StringBuilder();
     report.append("=== Структурный анализ графа ===\n\n");
